@@ -12,21 +12,9 @@ let PACK = null;      // 지금 푸는 주제
 let idx = 0;
 let answers = [];
 
-const DONE_KEY = "gam-test-done";
-
-/* 푼 주제를 기억한다. 이 브라우저 안에만 남고 서버로 가지 않는다.
-   시크릿 창이나 저장소 차단 환경에서는 읽기·쓰기가 막히므로 감싼다. */
-function doneMap() {
-  try { return JSON.parse(localStorage.getItem(DONE_KEY) || "{}"); }
-  catch { return {}; }
-}
-function markDone(id, score) {
-  try {
-    const m = doneMap();
-    m[id] = Math.max(score, m[id] ?? 0);
-    localStorage.setItem(DONE_KEY, JSON.stringify(m));
-  } catch { /* 저장이 막혀 있어도 앱은 그대로 돈다 */ }
-}
+/* 푼 주제와 점수는 기억하지 않는다. 누가 언제 들어와도 처음 푸는 화면이다.
+   예전 버전이 이 브라우저에 남긴 기록은 지운다 (저장소가 막혀 있어도 그대로 돈다) */
+try { localStorage.removeItem("gam-test-done"); } catch { /* 무시 */ }
 
 /* ── 채점 ────────────────────────────────────────────
  * 택1     맞으면 100, 틀리면 0
@@ -51,12 +39,6 @@ function reactionOf(q, mine, pct) {
   }
   return (INDEX.reactions.find((r) => pct <= r.max) || { text: "" }).text;
 }
-/* 받침이 있으면 을, 없으면 를 */
-function josa(w) {
-  const c = String(w).trim().slice(-1).charCodeAt(0);
-  if (c < 0xac00 || c > 0xd7a3) return "을";
-  return (c - 0xac00) % 28 ? "을" : "를";
-}
 /* Gemini 에게는 숫자가 아니라 방향만 보낸다 */
 function directionOf(q, mine) {
   if (q.type === "choice") return mine === q.answer ? "맞힘" : "틀림";
@@ -77,40 +59,28 @@ async function boot() {
   $("subtitle").textContent = INDEX.subtitle;
 
   const p = new URLSearchParams(location.search);
-  if (p.has("s")) {
-    const g = p.get("g") || "";
-    const t = INDEX.topics.find((x) => x.id === p.get("t"));
-    $("shared-banner").innerHTML =
-      `친구가 ${t ? `<b>${t.emoji} ${t.title}</b> 에서 ` : ""}` +
-      `<b>${Number(p.get("s"))}점 · ${g}</b>${josa(g || "점")} 받았습니다. 당신은요?`;
-    $("shared-banner").hidden = false;
-  }
 
   renderGrid();
   $("btn-next").onclick = next;
   $("btn-back").onclick = () => show("home");
   $("btn-more").onclick = () => { renderGrid(); show("home"); };
   $("btn-share").onclick = share;
+  // 공유 링크(?t=주제)로 들어오면 그 주제를 처음부터 연다. 보낸 사람 점수는 보여 주지 않는다
   if (p.has("t")) {
     const t = INDEX.topics.find((x) => x.id === p.get("t"));
-    if (t && !p.has("s")) start(t.id);
+    if (t) start(t.id);
   }
 }
 
 function renderGrid() {
-  const done = doneMap();
-  const n = INDEX.topics.filter((t) => t.id in done).length;
-  $("progress-note").textContent =
-    n ? `${INDEX.topics.length}개 중 ${n}개 풀었습니다` : "";
   $("topic-grid").innerHTML = "";
   INDEX.topics.forEach((t) => {
     const b = document.createElement("button");
-    b.className = "tcard" + (t.id in done ? " done" : "");
+    b.className = "tcard";
     b.innerHTML =
       `<span class="temoji">${t.emoji}</span>` +
       `<span class="ttitle">${t.title}</span>` +
-      `<span class="tblurb">${t.blurb}</span>` +
-      (t.id in done ? `<span class="tscore">${done[t.id]}점</span>` : "");
+      `<span class="tblurb">${t.blurb}</span>`;
     b.onclick = () => start(t.id);
     $("topic-grid").appendChild(b);
   });
@@ -188,7 +158,6 @@ function renderResult() {
     PACK.questions.map((q, i) => scoreOne(q, answers[i]))
       .reduce((a, b) => a + b, 0) / PACK.questions.length);
   const g = gradeOf(total);
-  markDone(PACK.id, total);
 
   $("result-topic").textContent = `${PACK.emoji} ${PACK.title}`;
   $("score").innerHTML = `${total}<span>점</span>`;
@@ -285,8 +254,7 @@ async function askComment(total, grade) {
 async function share() {
   const total = $("score").textContent.replace(/[^0-9]/g, "");
   const grade = $("grade").textContent;
-  const url = `${location.origin}${location.pathname}` +
-    `?t=${encodeURIComponent(PACK.id)}&s=${total}&g=${encodeURIComponent(grade)}`;
+  const url = `${location.origin}${location.pathname}?t=${encodeURIComponent(PACK.id)}`;
   const text = `건강 테스트 · ${PACK.title} ${total}점 · ${grade}`;
   try {
     if (navigator.share) { await navigator.share({ title: INDEX.title, text, url }); return; }

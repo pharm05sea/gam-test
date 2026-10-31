@@ -59,11 +59,6 @@ h2 { font-size: 21px; line-height: 1.4; margin: 6px 0 22px; letter-spacing: -.3p
 }
 #title { font-size: 34px; font-weight: 800; letter-spacing: -.5px; margin: 8px 0 2px; }
 #subtitle { font-size: 17px; font-weight: 400; margin: 0; }
-.banner {
-  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 13px 15px; font-size: 14px; margin: 0 0 8px;
-}
-.banner b { color: var(--brand); }
 
 /* 버튼 */
 button {
@@ -217,14 +212,9 @@ details[open] summary::after { content: " ▴"; }
   position: relative; transition: transform .06s ease, border-color .15s ease;
 }
 .tcard:active { transform: scale(.985); }
-.tcard.done { border-color: var(--ok); }
 .temoji { font-size: 26px; line-height: 1.1; }
 .ttitle { font-size: 14.5px; font-weight: 700; line-height: 1.35; }
 .tblurb { font-size: 11.5px; color: var(--muted); line-height: 1.45; font-weight: 400; }
-.tscore {
-  position: absolute; top: 12px; right: 12px; font-size: 11px;
-  font-weight: 700; color: var(--ok);
-}
 
 .linkish {
   width: auto; background: none; color: var(--muted); border: 0;
