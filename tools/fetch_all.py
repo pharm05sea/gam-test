@@ -118,6 +118,14 @@ SOURCES: list[tuple[str, str, str]] = [
      "?format=geojson&starttime=2000-01-01&endtime=2024-12-31"
      "&minmagnitude=5.5&orderby=time&limit=20000"),
 
+    # 공공데이터포털 파일은 **첨부파일 번호(atchFileId)로 못 박는다.**
+    # 기관이 새 해 자료를 올리면 번호가 바뀌고, 이 주소는 지금 받은 판을 그대로 준다.
+    # 한글은 CP949 로 들어 있다.
+    ("kor_dementia.csv",
+     "시군구·성·연령별 추정 치매·경도인지장애 2016~2025 (보건복지부 · 공공데이터포털 15073342)",
+     "https://www.data.go.kr/cmm/cmm/fileDownload.do"
+     "?atchFileId=FILE_000000003634517&fileDetailSn=1"),
+
     ("quakes_korea.geojson",
      "한반도 주변 지진 2000~2024 (USGS · 규모 3.0 이상)",
      "https://earthquake.usgs.gov/fdsnws/event/1/query"

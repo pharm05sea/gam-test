@@ -34,6 +34,10 @@ OUT = APP / "topics"
 
 TOPICS: list[dict] = []
 
+# 앱에 보여 줄 주제. 이 순서가 화면 순서다. 새 건강 주제를 만들면 여기에 id 를 더한다.
+# 목록에 없는 주제도 계산은 하지만, 문항 파일 · 목록 · 정답지로 내보내지 않는다
+SHOW = ["mild-cognitive-impairment", "life"]
+
 
 def load_json(name):
     return json.load(io.open(RAW / name, encoding="utf-8"))
@@ -72,10 +76,11 @@ def topic(tid, emoji, title, blurb, source, source_url, questions, caveat=""):
                    "caveat": caveat, "questions": questions})
 
 
-def slider(qid, text, answer, unit, lo, hi, step, basis, why):
+def slider(qid, text, answer, unit, lo, hi, step, basis, why, nd=1):
+    """nd = 정답의 소수 자릿수. 공표값을 그대로 써야 하면 그 자릿수를 준다."""
     return {"id": qid, "type": "slider", "text": text, "unit": unit,
             "min": lo, "max": hi, "step": step,
-            "answer": round(float(answer), 1), "basis": basis, "why": why}
+            "answer": round(float(answer), nd), "basis": basis, "why": why}
 
 
 def choice(qid, text, options, answer, basis, why):
@@ -660,6 +665,101 @@ topic(
            "출처를 다시 받아도 값이 바뀐 적이 있어서 기상청 적설·첫눈 기록이나 "
            "뉴스에서 본 숫자와 다를 수 있습니다.")
 
+# ── 12. 경도인지장애 ─────────────────────────────────────────────
+# 보건복지부 시군구별 치매현황은 조사 원자료가 아니라 **추정치**다. 연령별 유병률을
+# 해마다의 노인 인구에 곱해 만든 값이라, 「치매역학조사」 공표치와 다르다.
+# 이 파일에는 전국·시도 합계, 성별 '전체', '60세이상'·'65세이상' 같은 묶음 줄이
+# 섞여 있다. 전국 · 성별 전체 · 65세 이상 줄 하나만 집는다.
+# 연령 표기는 해마다 '65세이상' / '65세 이상' 으로 갈리고, 2025년은 값에 '%'가 붙는다.
+# 차이는 Decimal 로 빼서 공표값의 자릿수가 부동소수 오차로 흐트러지지 않게 한다.
+from decimal import Decimal
+
+DEM = list(csv.DictReader(io.open(RAW / "kor_dementia.csv", encoding="cp949")))
+
+
+def dem_65(year):
+    rows = [r for r in DEM if r["연도"] == str(year) and r["시도"] == "전국"
+            and r["성별"] == "전체" and r["연령별"].replace(" ", "") == "65세이상"]
+    assert len(rows) == 1, f"{year}년 전국·65세 이상 줄이 {len(rows)}개입니다"
+    return rows[0]
+
+
+def pct(v):
+    return Decimal(v.strip().rstrip("%"))
+
+
+def places(d):
+    return -d.as_tuple().exponent
+
+
+MCI = "추정경도인지장애진단자 유병률"
+DEMR = "추정치매환자유병률"
+mci_16, mci_23 = pct(dem_65(2016)[MCI]), pct(dem_65(2023)[MCI])
+dem_23 = pct(dem_65(2023)[DEMR])
+mci_up = mci_23 - mci_16
+mci_gap = mci_23 - dem_23
+# 공표 유병률은 소수 둘째 자리로 반올림돼 있다. 인원 ÷ 인구로 다시 내서 빼면 값이 달라진다
+MCIN = "추정경도인지장애 진단자수"
+mci_up_raw = (float(dem_65(2023)[MCIN]) / float(dem_65(2023)["노인인구수"])
+              - float(dem_65(2016)[MCIN]) / float(dem_65(2016)["노인인구수"])) * 100
+assert mci_up > 0, "문항 3은 '증가'를 묻는데 값이 줄었습니다"
+SRC_DEM = "보건복지부 시군구별 치매현황(추정치)"
+
+topic(
+    "mild-cognitive-impairment", "🧠", "경도인지장애, 얼마나 흔한가",
+    "2016년과 2023년, 만 65세 이상 노인의 추정 유병률",
+    "보건복지부 시군구별 치매현황 (추정치 · 공공데이터포털)",
+    "https://www.data.go.kr/data/15073342/fileData.do",
+    [
+        slider("m1", "2023년 기준, 우리나라 만 65세 이상 노인의 추정 경도인지장애 "
+               "유병률은 몇 %일까요?",
+               mci_23, "%", 0, 50, 0.1,
+               f"{SRC_DEM}의 2023년 전국·성별 전체·만 65세 이상 줄에서 추정 "
+               f"경도인지장애 진단자 유병률 {mci_23}%를 원본 자릿수 그대로 추출했으며 "
+               f"단위는 %이다.",
+               "'깜빡깜빡하는 정도'로 여기기 쉽지만, 노인 인구 안에서 차지하는 비율은 "
+               "생각보다 큽니다.", nd=places(mci_23)),
+        slider("m2", "2016년 기준, 우리나라 만 65세 이상 노인의 추정 경도인지장애 "
+               "유병률은 몇 %일까요?",
+               mci_16, "%", 0, 50, 0.1,
+               f"{SRC_DEM}의 2016년 전국·성별 전체·만 65세 이상 줄에서 추정 "
+               f"경도인지장애 진단자 유병률 {mci_16}%를 원본 자릿수 그대로 추출했으며 "
+               f"단위는 %이다.",
+               "몇 년 전이라 지금보다 훨씬 낮았을 것 같지만, 비율로 보면 차이가 "
+               "작습니다.", nd=places(mci_16)),
+        slider("m3", "2016년 대비 2023년, 만 65세 이상 노인의 추정 경도인지장애 "
+               "유병률은 몇 %p 증가했을까요?",
+               mci_up, "%p", 0, 5, 0.01,
+               f"{SRC_DEM}에서 만 65세 이상 추정 경도인지장애 진단자 유병률의 "
+               f"2023년 값 {mci_23}%에서 2016년 값 {mci_16}%를 빼 "
+               f"{mci_up:.2f}%p로 계산했으며 단위는 %p이다.",
+               "환자 수가 늘었다는 뉴스는 비율도 크게 늘었다는 뜻으로 들립니다. "
+               "수가 늘어난 것과 비율이 늘어난 것은 다릅니다.", nd=2),
+        slider("m4", "2023년 기준, 우리나라 만 65세 이상 노인의 추정 치매 유병률은 "
+               "몇 %일까요?",
+               dem_23, "%", 0, 30, 0.1,
+               f"{SRC_DEM}의 2023년 전국·성별 전체·만 65세 이상 줄에서 추정 치매 "
+               f"유병률 {dem_23}%를 원본 자릿수 그대로 추출했으며 단위는 %이다.",
+               "주변의 사례나 뉴스로 떠올리면 실제 비율보다 크게도, 작게도 "
+               "잡게 됩니다.", nd=places(dem_23)),
+        slider("m5", "2023년 기준, 만 65세 이상 노인의 추정 경도인지장애 유병률은 "
+               "추정 치매 유병률보다 몇 %p 높을까요?",
+               mci_gap, "%p", 0, 40, 0.1,
+               f"{SRC_DEM}의 2023년 만 65세 이상 줄에서 추정 경도인지장애 진단자 "
+               f"유병률 {mci_23}%에서 추정 치매 유병률 {dem_23}%를 빼 "
+               f"{mci_gap:.2f}%p로 계산했으며 단위는 %p이다.",
+               "치매가 더 많이 알려져 있어서, 그 앞 단계인 경도인지장애가 더 흔하다는 "
+               "점은 잘 떠올리지 못합니다.", nd=2),
+    ],
+    caveat="이 숫자는 조사에서 직접 센 값이 아니라 주민등록연앙인구(전년 말과 그해 말 "
+           "인구의 평균)에 성·연령별 유병률을 곱한 추정치이고, 출처는 2025년 값에만 "
+           "2023년 치매역학 실태조사 유병률을 적용했다고 밝힐 뿐 2016~2024년 값에 어느 "
+           "조사의 유병률을 썼는지는 적지 않았으며, 유병률이 소수 둘째 자리로 반올림돼 "
+           f"있어 2016→2023 차이를 인원수로 다시 계산하면 {mci_up_raw:.2f}%p로 달라지고, "
+           "그 차이도 연령별 유병률보다 노인 인구의 연령 구성 변화에서 나온 것이라서, "
+           "「치매역학조사」 공표치나 뉴스에서 본 숫자, 그리고 한 사람이 진단받을 확률과 "
+           "다를 수 있습니다.")
+
 # ── 10. 수명 ─────────────────────────────────────────────────────
 le = [r for r in load_csv("life_expectancy.csv") if r["life_expectancy_0"]]
 l_latest = max(int(r["year"]) for r in le if r["code"] == "KOR")
@@ -711,17 +811,26 @@ topic(
 
 # ════════════════════════════════════════════════════════════════
 def main() -> None:
+    by_id = {t["id"]: t for t in TOPICS}
+    missing = [i for i in SHOW if i not in by_id]
+    assert not missing, f"SHOW 에 있지만 만들지 않은 주제: {missing}"
+    shown = [by_id[i] for i in SHOW]
+    # --only <주제 id> 를 주면 그 주제의 문항 파일만 쓴다 (목록 topics.json 은 다시 쓴다)
+    only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None
+    assert only is None or only in SHOW, f"SHOW 에 없는 주제: {only}"
     OUT.mkdir(parents=True, exist_ok=True)
     index = []
-    for t in TOPICS:
+    for t in shown:
         assert len(t["questions"]) == 5, f"{t['id']}: 문항이 5개가 아닙니다"
+        index.append({k: t[k] for k in ("id", "emoji", "title", "blurb",
+                                        "source")})
+        if only and t["id"] != only:
+            continue
         pack = {k: t[k] for k in ("id", "emoji", "title", "blurb",
                                   "source", "source_url", "caveat")}
         pack["questions"] = t["questions"]
         io.open(OUT / f"{t['id']}.json", "w", encoding="utf-8").write(
             json.dumps(pack, ensure_ascii=False, indent=2))
-        index.append({k: t[k] for k in ("id", "emoji", "title", "blurb",
-                                        "source")})
 
     # 제목·부제는 화면을 바꾸며 고친 값을 지킨다 (2장에서 내 제목으로 바꾼다).
     # 다시 계산해도 내 제목이 «감 테스트»로 돌아가지 않게, 있던 값을 읽어 쓴다
@@ -753,10 +862,10 @@ def main() -> None:
     }, ensure_ascii=False, indent=2))
 
     # 사람이 읽는 정답지
-    md = [f"# 문항 정답지 — {len(TOPICS)}주제 "
-          f"{sum(len(t['questions']) for t in TOPICS)}문항", "",
+    md = [f"# 문항 정답지 — {len(shown)}주제 "
+          f"{sum(len(t['questions']) for t in shown)}문항", "",
           "> 모든 값은 `data/raw/` 의 원본에서 `tools/build_topics.py` 가 계산합니다.", ""]
-    for t in TOPICS:
+    for t in shown:
         md += [f"## {t['emoji']} {t['title']}", "",
                f"- 출처: {t['source']} · {t['source_url']}"]
         if t["caveat"]:
@@ -770,8 +879,9 @@ def main() -> None:
                    f"- 왜 틀리나 {q['why']}", ""]
     io.open(HERE / "정답지.md", "w", encoding="utf-8").write("\n".join(md))
 
-    print(f"주제 {len(TOPICS)}개 · 문항 {sum(len(t['questions']) for t in TOPICS)}개")
-    for t in TOPICS:
+    print(f"주제 {len(shown)}개 · 문항 {sum(len(t['questions']) for t in shown)}개"
+          f" (만든 주제 {len(TOPICS)}개 중 SHOW 에 든 것만)")
+    for t in shown:
         print(f"\n{t['emoji']} {t['title']}  ({t['source']})")
         for q in t["questions"]:
             a = f"{q['answer']}{q.get('unit', '')}" if q["type"] == "slider" \
