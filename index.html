@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>건강 테스트 — 건강 숫자에 대한 당신의 감은 몇 점?</title>
 <meta name="description" content="공개 데이터로 만든 건강 숫자 추측 게임. 주제당 5문항.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -14,11 +15,11 @@
   <!-- 주제 고르기 ──────────────────────────────── -->
   <section id="view-home" class="view">
     <div class="hero">
-      <p class="eyebrow">건강 테스트</p>
+      <p class="eyebrow"><span>건강 테스트</span></p>
       <h1 id="title">건강 테스트</h1>
       <p id="subtitle" class="muted"></p>
     </div>
-    <div id="topic-grid" class="grid"></div>
+    <div id="topic-grid" class="list"></div>
     <p class="fineprint">모든 숫자는 공개 데이터에서 직접 계산했습니다.
       정답 옆의 <b>근거 보기</b>를 누르면 어떻게 셌는지 나옵니다.</p>
   </section>
@@ -26,9 +27,11 @@
   <!-- 문항 ───────────────────────────────────── -->
   <section id="view-quiz" class="view" hidden>
     <button id="btn-back" class="linkish">← 주제 고르기</button>
-    <p id="topic-name" class="muted small"></p>
-    <div class="progress"><div id="progress-bar"></div></div>
-    <p id="q-count" class="muted small"></p>
+    <div class="qhead">
+      <div id="q-count" class="qno"></div>
+      <span id="topic-name" class="chip"></span>
+    </div>
+    <div id="q-dots" class="dots"></div>
     <h2 id="q-text"></h2>
 
     <div id="q-choice" class="choices" hidden></div>
@@ -44,7 +47,7 @@
 
   <!-- 결과 ───────────────────────────────────── -->
   <section id="view-result" class="view" hidden>
-    <p id="result-topic" class="muted small"></p>
+    <p id="result-topic" class="chip"></p>
     <div class="score-card">
       <div id="grade-emoji" class="grade-emoji"></div>
       <div id="score" class="score"></div>

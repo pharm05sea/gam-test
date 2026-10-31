@@ -16,6 +16,26 @@ let answers = [];
    예전 버전이 이 브라우저에 남긴 기록은 지운다 (저장소가 막혀 있어도 그대로 돈다) */
 try { localStorage.removeItem("gam-test-done"); } catch { /* 무시 */ }
 
+/* 주제 색 — topics.json 순서대로 돌려 쓴다. 주제가 늘어도 색이 이어진다
+   tile 타일 바탕 · ink 타일 글씨 · accent 번호·슬라이더 */
+const PALETTE = [
+  { tile: "#e9e6fb", ink: "#2e2a5c", accent: "#6b5fd3" },  // 보라
+  { tile: "#dcf3ea", ink: "#1d4a3a", accent: "#2f9a72" },  // 민트
+  { tile: "#fde7da", ink: "#5a2f17", accent: "#d9784a" },  // 살구
+  { tile: "#dcecfb", ink: "#173a5a", accent: "#3f86c9" },  // 하늘
+  { tile: "#fbf1cf", ink: "#4f3d0c", accent: "#c69a1c" },  // 레몬
+];
+function paletteOf(id) {
+  const i = Math.max(0, INDEX.topics.findIndex((t) => t.id === id));
+  return PALETTE[i % PALETTE.length];
+}
+function applyTheme(el, c) {
+  el.style.setProperty("--tile", c.tile);
+  el.style.setProperty("--tile-ink", c.ink);
+  el.style.setProperty("--accent", c.accent);
+}
+const two = (n) => String(n).padStart(2, "0");
+
 /* ── 채점 ────────────────────────────────────────────
  * 택1     맞으면 100, 틀리면 0
  * 슬라이더 오차율 × 200 만큼 깎는다 (10% 빗나가면 80점)
@@ -74,12 +94,14 @@ async function boot() {
 
 function renderGrid() {
   $("topic-grid").innerHTML = "";
-  INDEX.topics.forEach((t) => {
+  INDEX.topics.forEach((t, i) => {
     const b = document.createElement("button");
     b.className = "tcard";
+    applyTheme(b, paletteOf(t.id));
     b.innerHTML =
-      `<span class="temoji">${t.emoji}</span>` +
+      `<span class="tno">${two(i + 1)}</span>` +
       `<span class="ttitle">${t.title}</span>` +
+      `<span class="temoji">${t.emoji}</span>` +
       `<span class="tblurb">${t.blurb}</span>`;
     b.onclick = () => start(t.id);
     $("topic-grid").appendChild(b);
@@ -89,6 +111,7 @@ function renderGrid() {
 async function start(id) {
   PACK = await (await fetch(`topics/${id}.json`)).json();
   idx = 0; answers = [];
+  applyTheme($("app"), paletteOf(id));
   $("topic-name").textContent = `${PACK.emoji} ${PACK.title}`;
   renderQ();
   show("quiz");
@@ -97,8 +120,10 @@ async function start(id) {
 /* ── 문항 ────────────────────────────────────────── */
 function renderQ() {
   const q = PACK.questions[idx];
-  $("progress-bar").style.width = `${(idx / PACK.questions.length) * 100}%`;
-  $("q-count").textContent = `${idx + 1} / ${PACK.questions.length}`;
+  const n = PACK.questions.length;
+  $("q-count").innerHTML = `${two(idx + 1)}<span> / ${two(n)}</span>`;
+  $("q-dots").innerHTML = PACK.questions
+    .map((_, i) => `<i class="${i <= idx ? "on" : ""}"></i>`).join("");
   $("q-text").textContent = q.text;
   $("btn-next").textContent =
     idx === PACK.questions.length - 1 ? "결과 보기" : "다음";
@@ -134,7 +159,8 @@ function renderQ() {
     $("slider-max").textContent = `${q.max}${q.unit}`;
     const paint = () => {
       answers[idx] = Number(s.value);
-      $("slider-out").textContent = `${s.value}${q.unit}`;
+      $("slider-out").innerHTML = `${s.value}<small>${q.unit}</small>`;
+      s.style.setProperty("--fill", `${pos(q, Number(s.value))}%`);
     };
     s.oninput = paint;
     paint();
